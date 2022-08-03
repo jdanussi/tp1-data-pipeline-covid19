@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  This template deploys the S3 buckets that are needed for the covid19 application.
+
+
+Parameters:
+  paramBucketName1:
+    Type: String
+    Default: "{{resolve:ssm:/cde/S3_BUCKET_DATASETS:1}}"
+    Description: Bucket to store covid19 datasets
+  paramBucketName2:
+    Type: String
+    Default: "{{resolve:ssm:/cde/S3_BUCKET_LAMBDA:1}}"
+    Description: Bucket to store the lambda function that runs the ECS task
+
+
+Resources:
+  S3Bucket1:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      AccessControl: BucketOwnerFullControl
+      BucketName: !Ref paramBucketName1
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  S3Bucket2:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      AccessControl: BucketOwnerFullControl
+      BucketName: !Ref paramBucketName2
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+
+Outputs:
+  BucketName1:
+    Value: !Ref S3Bucket1
+    Description: Name of the Amazon S3 bucket to store datasets.
+  BucketName2:
+    Value: !Ref S3Bucket2
+    Description: Name of the Amazon S3 bucket to store lambda function zip file for deploy.

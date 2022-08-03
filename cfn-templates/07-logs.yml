@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  This template deploys 2 Cloudwatch Log groups to register ECS task logs
+
+Parameters:
+  LogGroupName1:
+    Type: String
+    Default: '/ecs/data-pipeline-cluster'
+    Description: Cloudwatch log group for data-pipeline-cluster
+  LogGroupName2:
+    Type: String
+    Default: '/ecs/dashboard-cluster'
+    Description: Cloudwatch log group for dashboard-cluster
+  LogGroupRetention:
+    Type: Number
+    Description: Retention period for log groups in cloudwatch
+    Default: 7
+  DelPolicy:
+    Type: String
+    Description: Deletion policy
+    Default: 'Retain'
+
+Resources:
+  LogGroup1:
+    Type: 'AWS::Logs::LogGroup'
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Ref LogGroupName1
+      RetentionInDays: !Ref LogGroupRetention
+  LogGroup2:
+    Type: 'AWS::Logs::LogGroup'
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Ref LogGroupName2
+      RetentionInDays: !Ref LogGroupRetention
+  
+Outputs:
+  LogGroup1:
+    Value: !Ref LogGroup1
+    Description: Cloudwatch log group for data-pipeline-cluster
+    
+  LogGroup2:
+    Value: !Ref LogGroup2
+    Description: Cloudwatch log group for dashboard-cluster
+      

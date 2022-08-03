@@ -1,0 +1,981 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  This template deploys:
+  1 VPC
+  2 public subnets spread across 2 AZs for internet facing services (Public tier).
+  2 private subnets spread across 2 AZs for data pipeline tier (Data pipeline tier).
+  2 private subnets spread across 2 AZs for database (Database tier).
+  1 Internet Gateway on the public subnets for internet access.
+  3 Route tables, one for each tier. 
+  6 VPC Endpoints.
+  5 Security groups.
+  The NACLs for private subnets were customized to restric access. 
+
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - 
+        Label: 
+          default: "Network Configuration"
+        Parameters: 
+          - VPCCIDR
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PrivateSubnetApp1CIDR
+          - PrivateSubnetApp2CIDR
+          - PrivateSubnetDB1CIDR
+          - PrivateSubnetDB2CIDR
+
+Parameters:
+  VPCCIDR:
+    Default: 10.0.0.0/16
+    Description: CIDR block for the VPC
+    Type: String
+  PublicSubnet1CIDR:
+    Default: 10.0.0.0/24
+    Description: CIDR block for the public subnet 1 (AZ1)
+    Type: String
+  PublicSubnet2CIDR:
+    Default: 10.0.1.0/24
+    Description: CIDR block for the public subnet 2 (AZ2)
+    Type: String
+  PrivateSubnetApp1CIDR:
+    Default: 10.0.2.0/24
+    Description: CIDR block for application tier private subnet 1 (AZ1)
+    Type: String
+  PrivateSubnetApp2CIDR:
+    Default: 10.0.3.0/24
+    Description: CIDR block for application tier private subnet 2 (AZ2)
+    Type: String
+  PrivateSubnetDB1CIDR:
+    Default: 10.0.4.0/24
+    Description: CIDR block for database tier private subnet 1 (AZ1)
+    Type: String
+  PrivateSubnetDB2CIDR:
+    Default: 10.0.5.0/24
+    Description: CIDR block for database tier private subnet 2 (AZ2)
+    Type: String
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref 'VPCCIDR'
+      InstanceTenancy: default
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref 'AWS::StackName'
+ 
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-IGW'
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+# -----------------------------------------------------------------------------
+# Subnets
+# -----------------------------------------------------------------------------
+
+  # Public tier
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref 'PublicSubnet1CIDR'
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: public-subnet-01
+      VpcId: !Ref VPC
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Ref 'PublicSubnet2CIDR'
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: public-subnet-02
+      VpcId: !Ref VPC
+
+  # Data pipeline tier
+  PrivateSubnetApp1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref 'PrivateSubnetApp1CIDR'
+      Tags:
+      - Key: Name
+        Value: app-subnet-01
+      VpcId: !Ref VPC
+  PrivateSubnetApp2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Ref 'PrivateSubnetApp2CIDR'
+      Tags:
+      - Key: Name
+        Value: app-subnet-02
+      VpcId: !Ref VPC
+
+  # Database tier
+  PrivateSubnetDB1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref 'PrivateSubnetDB1CIDR'
+      Tags:
+      - Key: Name
+        Value: db-subnet-01
+      VpcId: !Ref VPC
+  PrivateSubnetDB2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Ref 'PrivateSubnetDB2CIDR'
+      Tags:
+      - Key: Name
+        Value: db-subnet-02
+      VpcId: !Ref VPC
+
+# -----------------------------------------------------------------------------
+# Route tables
+# -----------------------------------------------------------------------------
+
+  # Public tier 
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+      - Key: Name
+        Value: public-rt
+      VpcId: !Ref VPC
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  # Data pipeline tier
+  PrivateAppRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: app-rt
+  PrivateSubnetApp1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetApp1'
+      RouteTableId: !Ref 'PrivateAppRouteTable'
+  PrivateSubnetApp2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetApp2'
+      RouteTableId: !Ref 'PrivateAppRouteTable'
+  
+  # Database tier
+  PrivateDBRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: db-rt
+  PrivateSubnetDB1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetDB1'
+      RouteTableId: !Ref 'PrivateDBRouteTable'
+  PrivateSubnetDB2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetDB2'
+      RouteTableId: !Ref 'PrivateDBRouteTable'
+
+# -----------------------------------------------------------------------------
+# NACLs
+# -----------------------------------------------------------------------------
+
+  # Public tier
+  PublicSubnetNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: NACL PublicSubnet
+
+  ## INBOUND ACL RULES ##
+
+  # Allow all trafic (default)
+  PublicSubnet1NetworkAclEntryInbound:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: '0.0.0.0/0'
+      Egress: false
+      NetworkAclId: !Ref 'PublicSubnetNetworkAcl'
+      Protocol: -1
+      RuleAction: allow
+      RuleNumber: 100
+
+  ## OUTBOUND ACL RULES ##
+
+  # Allow all trafic (default)
+  PublicSubnet1NetworkAclEntryOutbound:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: '0.0.0.0/0'
+      Egress: true
+      NetworkAclId: !Ref 'PublicSubnetNetworkAcl'
+      Protocol: -1
+      RuleAction: allow
+      RuleNumber: 100
+
+  # Associations
+  PublicSubnet1NetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref 'PublicSubnet1'
+      NetworkAclId: !Ref 'PublicSubnetNetworkAcl'
+  PublicSubnet2NetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref 'PublicSubnet2'
+      NetworkAclId: !Ref 'PublicSubnetNetworkAcl'
+
+  # Data pipeline tier
+  PrivateSubnetAppNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: NACL PrivateSubnetApp
+
+  ## INBOUND ACL RULES ##
+ 
+  # Allow SSL access to VPC Interface Endpoints and S3 Gateway Endpoint
+  PrivateSubnetAppNetworkAclEntryInbound1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Ref 'VPCCIDR'
+      Egress: false
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+      PortRange:
+        From: 443
+        To: 443
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 101
+
+  # Allow session traffic with database tier (porque 'anywhere'?)
+  PrivateSubnetAppNetworkAclEntryInbound2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      #CidrBlock: !Ref 'VPCCIDR'
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+      PortRange:
+        From: 1025
+        To: 65535
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 110
+
+  ## OUTBOUND ACL RULES ##
+
+  # Allow SSL access to VPC Interface Endpoints and S3 Gateway Endpoint
+  PrivateSubnetAppNetworkAclEntryOutbound1:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: '0.0.0.0/0'
+      Egress: true
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+      PortRange:
+        From: 443
+        To: 443
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 101
+
+  # Allow sessions to database tier (porque 'anywhere'?)
+  PrivateSubnetAppNetworkAclEntryOutbound2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: '0.0.0.0/0'
+      #CidrBlock: !Ref 'VPCCIDR'
+      Egress: true
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+      PortRange:
+        From: 1025
+        To: 65535
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 110
+  
+  # Allow access to database in PrivateSubnetDB1
+  PrivateSubnetAppNetworkAclEntryOutbound3:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Ref 'PrivateSubnetDB1CIDR'
+      Egress: true
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+      PortRange:
+        From: 5432
+        To: 5432
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 120
+  
+  # Allow access to database in PrivateSubnetDB2
+  PrivateSubnetAppNetworkAclEntryOutbound4:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Ref 'PrivateSubnetDB2CIDR'
+      Egress: true
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+      PortRange:
+        From: 5432
+        To: 5432
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 130
+  
+  # Associations
+  PrivateSubnetApp1NetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetApp1'
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+  PrivateSubnetApp2NetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetApp2'
+      NetworkAclId: !Ref 'PrivateSubnetAppNetworkAcl'
+
+  # Database tier
+  PrivateSubnetDBNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: NACL PrivateSubnetDB
+
+  ## INBOUND ACL RULES ##
+
+  # Allow access to database from Bastion Host, ECS cluster and Metabase
+  PrivateSubnetDBNetworkAclEntryInbound:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Ref 'VPCCIDR'
+      Egress: false
+      NetworkAclId: !Ref 'PrivateSubnetDBNetworkAcl'
+      PortRange:
+        From: 5432
+        To: 5432
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 100
+
+  ## OUTBOUND ACL RULES ##
+  
+  # Allow dynamic ports for sessions initiated from Bastion Host, ECS cluster and Metabase
+  PrivateSubnetDBNetworkAclEntryOutbound2:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: !Ref 'VPCCIDR'
+      Egress: true
+      NetworkAclId: !Ref 'PrivateSubnetDBNetworkAcl'
+      PortRange:
+        From: 1025
+        To: 65535
+      Protocol: 6
+      RuleAction: allow
+      RuleNumber: 100
+
+  # Associations
+  PrivateSubnetDB1NetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetDB1'
+      NetworkAclId: !Ref 'PrivateSubnetDBNetworkAcl'
+  PrivateSubnetDB2NetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref 'PrivateSubnetDB2'
+      NetworkAclId: !Ref 'PrivateSubnetDBNetworkAcl'
+
+# -----------------------------------------------------------------------------
+# Security Groups
+# -----------------------------------------------------------------------------
+
+  # Security group for Bastion Host ASG
+  BastionHostSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: BastionHostSG
+      GroupDescription: Bastion Host Security Group
+      Tags:
+        - Key: Name
+          Value: bastion-host-sg
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  # Security group for ECS cluster
+  DataPipelineSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: DataPipelineSG
+      GroupDescription: Data Pipeline Security Group
+      Tags:
+        - Key: Name
+          Value: data-pipeline-sg
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  # Security group for PostgreSQL RDS
+  DatabaseSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: DatabaseSG
+      GroupDescription: Database Security Group
+      Tags:
+        - Key: Name
+          Value: database-sg
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 1025
+          ToPort: 65535
+          CidrIp: !Ref 'VPCCIDR'
+  
+  # Security group for VPC Endpoints
+  VPCEndpointsSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: VPCEndpointsSG
+      GroupDescription: VPC Endpoints Security Group
+      Tags:
+        - Key: Name
+          Value: vpce-sg
+  
+  # Security group for ELB (frotend of Metabase target group)
+  ELBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: ELBSG
+      GroupDescription: ELB Security Group
+      Tags:
+        - Key: Name
+          Value: dashboard-lb-sg
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  # Security group for Metabase target group         
+  DashboardSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: DashboardSG
+      GroupDescription: Metabase Security Group
+      Tags:
+        - Key: Name
+          Value: dashboard-sg
+      # Allow image pull from docker hub and access to Cloudwatch VPC endpoint for logs    
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+  
+  # Security group rules that references other security groups
+
+  ## OUTBOUND SG RULES ##
+
+  # BastionHostSG
+  BastionHostSGOutboundRule1:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: database
+      DestinationSecurityGroupId:
+        Fn::GetAtt:
+          - DatabaseSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - BastionHostSG
+          - GroupId
+  BastionHostSGOutboundRule2:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      Description: VPC endpoints
+      DestinationSecurityGroupId:
+        Fn::GetAtt:
+          - VPCEndpointsSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - BastionHostSG
+          - GroupId
+
+  # DataPipelineSG
+  DataPipelineSGOutboundRule1:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: database
+      DestinationSecurityGroupId:
+        Fn::GetAtt:
+          - DatabaseSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - DataPipelineSG
+          - GroupId
+
+  # ELBSG
+  ELBSGOutboundRule1:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3000
+      ToPort: 3000
+      Description: dashboard-cluster
+      DestinationSecurityGroupId:
+        Fn::GetAtt:
+          - DashboardSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - ELBSG
+          - GroupId
+  
+  # DashboardSG
+  DashboardSGOutboundRule1:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: database
+      DestinationSecurityGroupId:
+        Fn::GetAtt:
+          - DatabaseSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - DashboardSG
+          - GroupId
+
+  ## INBOUND SG RULES ##
+
+  # DatabaseSG
+  DatabaseSGInboundRule1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: bastion-host
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - BastionHostSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - DatabaseSG
+          - GroupId
+  DatabaseSGInboundRule2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: data-pipeline-cluster
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - DataPipelineSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - DatabaseSG
+          - GroupId
+  DatabaseSGInboundRule3:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: dashboard-cluster
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - DashboardSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - DatabaseSG
+          - GroupId
+  
+  # VPCEndpointsSG
+  VPCEndpointsSGInboundRule1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      Description: bastion-host
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - BastionHostSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - VPCEndpointsSG
+          - GroupId
+  VPCEndpointsSGInboundRule2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      Description: data-pipeline-cluster
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - DataPipelineSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - VPCEndpointsSG
+          - GroupId
+  VPCEndpointsSGInboundRule3:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      Description: dashboard-cluster
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - DashboardSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - VPCEndpointsSG
+          - GroupId
+
+  # DashboardSG
+  DashboardSGInboundRule1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3000
+      ToPort: 3000
+      Description: dashboard-lb
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - ELBSG
+          - GroupId
+      GroupId:
+        Fn::GetAtt:
+          - DashboardSG
+          - GroupId
+
+# -----------------------------------------------------------------------------
+# VPC Endpoints
+# -----------------------------------------------------------------------------
+  
+  # EC2 api VPC endpoint to allow EIP assigment to ASG instances in public subnets 
+  privateVPCEndpoint1:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSG
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  
+  # Endpoints needed by ECS to pull docker images from ECR (ecr.dkr, cer.api and s3)
+
+  # ecr.dkr endpoint
+  privateVPCEndpoint2:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: privateVPCEndpoint1
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSG
+      SubnetIds:
+        - !Ref PrivateSubnetApp1
+        - !Ref PrivateSubnetApp2
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  
+  # ecr.api endpoint
+  privateVPCEndpoint3:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: privateVPCEndpoint2
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSG
+      SubnetIds:
+        - !Ref PrivateSubnetApp1
+        - !Ref PrivateSubnetApp2
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  
+  # S3 gateway endpoint
+  privateVPCEndpoint4:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: privateVPCEndpoint3
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: '*'
+            Effect: Allow
+            Resource: '*'
+            Principal: '*'
+      RouteTableIds:
+        - !Ref 'PrivateAppRouteTable'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref 'VPC'
+  
+  # Cloudwatch logs endpoint
+  privateVPCEndpoint5:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: privateVPCEndpoint4
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSG
+      SubnetIds:
+        - !Ref PrivateSubnetApp1
+        - !Ref PrivateSubnetApp2
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  
+  # ssm endpoint for Parameter Store access
+  privateVPCEndpoint6:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: privateVPCEndpoint5
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref VPCEndpointsSG
+      SubnetIds:
+        - !Ref PrivateSubnetApp1
+        - !Ref PrivateSubnetApp2
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+  
+  # Create /cde/ECS_SUBNET1 parameter in SSM Parameter Store
+  ECSSubnet1Parameter:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: ECS_SUBNET1
+      Name: /cde/ECS_SUBNET1
+      Type: String
+      Value: !Ref PrivateSubnetApp1
+  
+  # Create /cde/ECS_SUBNET2 parameter in SSM Parameter Store
+  ECSSubnet2Parameter:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: ECS_SUBNET2
+      Name: /cde/ECS_SUBNET2
+      Type: String
+      Value: !Ref PrivateSubnetApp2
+  
+  # Create /cde/ECS_SECURITY_GROUP parameter in SSM Parameter Store
+  ECSSecurityGroupParameter:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: ECS_SECURITY_GROUP
+      Name: /cde/ECS_SECURITY_GROUP
+      Type: String
+      Value: !Ref DataPipelineSG
+
+Outputs:
+  VPCID:
+    Value: !Ref VPC
+    Description: VPC ID
+    Export:
+      Name: !Sub ${AWS::StackName}-VPCID
+  VPCCIDR:
+    Value: !Ref VPCCIDR
+    Description: VPC CIDR
+    Export:
+      Name: !Sub ${AWS::StackName}-VPCCIDR
+
+  PublicSubnet1:
+    Description: Public subnet 1 (AZ1)
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicSubnet1
+  PublicSubnet1CIDR:
+    Description: Public subnet 1 CIDR (AZ1)
+    Value: !Ref PublicSubnet1CIDR
+  PublicSubnet2:
+    Description: Public subnet 2 (AZ2)
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicSubnet2
+  PublicSubnet2CIDR:
+    Description: Public subnet 2 CIDR (AZ2)
+    Value: !Ref PublicSubnet2CIDR
+  PrivateSubnetApp1:
+    Description: App Private subnet 1 (AZ1)
+    Value: !Ref PrivateSubnetApp1
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateSubnetApp1
+  PrivateSubnetApp1CIDR:
+    Description: App Private subnet 1 CIDR (AZ1)
+    Value: !Ref PrivateSubnetApp1CIDR
+  PrivateSubnetApp2:
+    Description: App Private subnet 2 (AZ2)
+    Value: !Ref PrivateSubnetApp2
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateSubnetApp2
+  PrivateSubnetApp2CIDR:
+    Description: App Private subnet 2 CIDR (AZ2)
+    Value: !Ref PrivateSubnetApp2CIDR
+  PrivateSubnetDB1:
+    Description: DB Private subnet 1 (AZ1)
+    Value: !Ref PrivateSubnetDB1
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateSubnetDB1
+  PrivateSubnetDB1CIDR:
+    Description: DB Private subnet 1 CIDR (AZ1)
+    Value: !Ref PrivateSubnetDB1CIDR
+  PrivateSubnetDB2:
+    Description: DB Private subnet 2 (AZ2)
+    Value: !Ref PrivateSubnetDB2
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateSubnetDB2
+  PrivateSubnetDB2CIDR:
+    Description: DB Private subnet 2 CIDR (AZ2)
+    Value: !Ref PrivateSubnetDB2CIDR
+
+  PublicRouteTable:
+    Value: !Ref PublicRouteTable
+    Description: Public route table
+  PrivateAppRouteTable:
+    Value: !Ref PrivateAppRouteTable
+    Description: App Private route table
+  PrivateDBRouteTable:
+    Value: !Ref PrivateDBRouteTable
+    Description: DB Private route table
+
+  privateVPCEndpoint1:
+    Description: ec2 endpoint
+    Value: !Ref privateVPCEndpoint1
+  privateVPCEndpoint2:
+    Description: ecr.dkr endpoint
+    Value: !Ref privateVPCEndpoint2
+  privateVPCEndpoint3:
+    Description: ecr.api endpoint
+    Value: !Ref privateVPCEndpoint3
+  privateVPCEndpoint4:
+    Description: S3 gateway endpoint
+    Value: !Ref privateVPCEndpoint4
+  privateVPCEndpoint5:
+    Description: Cloudwatch logs endpoint
+    Value: !Ref privateVPCEndpoint5
+  privateVPCEndpoint6:
+    Description: ssm endpoint for Parameter Store access
+    Value: !Ref privateVPCEndpoint6
+
+  BastionHostSG:
+    Description: Security group for bastion host
+    Value: !Ref BastionHostSG
+    Export:
+      Name: !Sub ${AWS::StackName}-BastionHostSG
+  DataPipelineSG:
+    Description: Security group for data pipeline tier
+    Value: !Ref DataPipelineSG
+    Export:
+      Name: !Sub ${AWS::StackName}-DataPipelineSG
+  DatabaseSG:
+    Description: Security group for database tier
+    Value: !Ref DatabaseSG
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseSG
+  VPCEndpointsSG:
+    Description: Security group for VPC endpoints
+    Value: !Ref VPCEndpointsSG
+    Export:
+      Name: !Sub ${AWS::StackName}-VPCEndpointsSG
+  ELBSG:
+    Description: Security group for the dashboard ELB
+    Value: !Ref ELBSG
+    Export:
+      Name: !Sub ${AWS::StackName}-ELBSG
+  DashboardSG:
+    Description: Security group for the dashboard target group (Metabase)
+    Value: !Ref DashboardSG
+    Export:
+      Name: !Sub ${AWS::StackName}-DashboardSG
+  
+  ECSSubnet1Parameter:
+    Description: /cde/ECS_SUBNET1 prameter created in SSM Parameter Store
+    Value: !Ref ECSSubnet1Parameter
+  ECSSubnet2Parameter:
+    Description: /cde/ECS_SUBNET2 parameter created in SSM Parameter Store
+    Value: !Ref ECSSubnet2Parameter
+  ECSSecurityGroupParameter:
+    Description: /cde/ECS_SECURITY_GROUP parameter created in SSM Parameter Store
+    Value: !Ref ECSSecurityGroupParameter

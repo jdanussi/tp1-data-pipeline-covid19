@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  This template deploys the ECR repository that ECS needs to pull images from.
+
+  
+Resources:
+  ECR1:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: python-etl
+
+
+Outputs:
+  RepositoryName1:
+    Value: !Ref ECR1
+    Description: Name of the ECR repository.

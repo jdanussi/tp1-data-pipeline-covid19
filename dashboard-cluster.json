@@ -1,0 +1,67 @@
+{
+    "family": "dasboard-cluster",
+    "taskRoleArn": "arn:aws:iam::857358382878:role/LabRole",
+    "networkMode": "awsvpc",
+    "executionRoleArn": "arn:aws:iam::857358382878:role/LabRole",
+    "requiresCompatibilities": [
+          "FARGATE"
+      ], 
+      "cpu": "512", 
+      "memory": "4096",
+  "containerDefinitions": [
+      {
+        "image": "metabase/metabase",
+        "name": "metabase",
+        "cpu": 2,
+        "memory": 2048,
+        "essential": true,
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/dashboard-cluster",
+            "awslogs-region": "us-east-1",
+            "awslogs-stream-prefix": "ecs"
+          }
+        },
+        "portMappings": [
+          {
+            "containerPort": 3000,
+            "hostPort": 3000
+          }
+        ],
+        "environment": [
+          {
+            "name": "MB_DB_HOST",
+            "value": "database-master.c5ky66tbevcc.us-east-1.rds.amazonaws.com"
+          },
+          {
+            "name": "MB_DB_PORT",
+            "value": "5432"
+          },
+          {
+            "name": "MB_DB_TYPE",
+            "value": "postgres"
+          },
+          {
+            "name": "MB_DB_DBNAME",
+            "value": "metabase"
+          },
+          {
+            "name": "MB_DB_USER",
+            "value": "postgres"
+          },
+          {
+            "name": "MB_DB_PASS",
+            "value": "postgres123"
+          }
+  ],
+        "ulimits": [
+          {
+            "name": "nofile",
+            "softLimit": 32000,
+            "hardLimit": 32000
+          }
+  ]
+      }
+    ]
+}

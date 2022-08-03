@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  This template deploys a launch template and an auto scaling group
+  in the public subnets for the bastion host.
+
+
+Parameters:
+  #LaunchTemplateVersionNumber:
+  #  Type: String
+  #  Default: 1
+  VpcStack:
+    Type: String
+    Default: 'vpc-prod'
+    Description: Name of VPC stack to build off of
+  KeyNameLaunchTemplate:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: 'BastionHost'
+    Description: Existing key to access Bastion Host via ssh
+
+# Mappings to allow deploy in N.Virginia or Oregon regions 
+Mappings: 
+  RegionMap: 
+    us-east-1: 
+      HVM64: "ami-0cff7528ff583bf9a"
+    us-west-2: 
+      HVM64: "ami-098e42ae54c764c35"
+
+
+Resources:
+  # EIP for Bastion Host
+  AutoScalingGroupEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Bastion Host
+
+  # Create eipalloc-id in SSM Parameter Store    
+  EIPAllocParamater:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Description: eipalloc-id of the EIP for Bastion Host
+      Name: /cde/EIP
+      Type: String
+      Value: !GetAtt AutoScalingGroupEIP.AllocationId
+  
+  # Launch template for Bastion Host instance
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-LaunchTemplate'
+      LaunchTemplateData:
+        IamInstanceProfile: 
+          Arn: !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/LabInstanceProfile'
+        Placement:
+          Tenancy: default
+        ImageId: !FindInMap [ RegionMap, !Ref "AWS::Region", HVM64 ]
+        KeyName: !Ref KeyNameLaunchTemplate
+        InstanceType: t2.micro
+        SecurityGroupIds:
+        - Fn::ImportValue: !Sub ${VpcStack}-BastionHostSG
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+            MAXWAIT=3
+            AWS_DEFAULT_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+            ALLOC_ID=`echo $(aws ssm get-parameter --name /cde/EIP --query Parameter.Value --region $AWS_DEFAULT_REGION) | tr -d '"'`
+            echo Running: aws ec2 associate-address --region $AWS_DEFAULT_REGION --instance-id $INSTANCE_ID --allocation-id $ALLOC_ID --allow-reassociation
+            aws ec2 associate-address --region $AWS_DEFAULT_REGION --instance-id $INSTANCE_ID --allocation-id $ALLOC_ID --allow-reassociation
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: '1'
+      MaxSize: '1'
+      DesiredCapacity: '1'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: Bastion Host
+          PropagateAtLaunch: 'true'
+      VPCZoneIdentifier:
+      - Fn::ImportValue: !Sub ${VpcStack}-PublicSubnet1
+      - Fn::ImportValue: !Sub ${VpcStack}-PublicSubnet2
+
+  
+Outputs: 
+  AutoScalingGroupEIP:
+    Description: EIP for Bastion Host
+    Value: !Ref AutoScalingGroupEIP
+  EIPAllocParamater:
+    Description: eipalloc-id parameter created in SSM Parameter Store
+    Value: !Ref EIPAllocParamater
+  LaunchTemplate:
+    Description: Launch template for Bastion Host
+    Value: !Ref LaunchTemplate
+  AutoscalingGroup: 
+    Description: Auto scaling group for Bastion Host
+    Value: !Ref AutoScalingGroup
+  

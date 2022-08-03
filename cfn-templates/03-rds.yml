@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  This template deploys an RDS PostgreSQL master and single read replica database.
+
+
+Parameters:
+  VpcStack:
+    Type: String
+    Default: 'vpc-prod'
+    Description: Name of VPC stack to build off of
+  DBInstanceIdentifier:
+    Default: database-master
+    Type: String
+  ReplicaInstanceIdentifier:
+    Default: database-replica
+    Type: String
+  DBEngine:
+    Default: postgres
+    Type: String
+  DBEngineVersion:
+    Default: '13.4'
+    Type: String
+  DBSourceRegion:
+    Default: us-east-1
+    Type: String
+  DBInstanceClass:
+    Default: db.t3.medium
+    Type: String
+  DBStorageType:
+    Default: gp2
+    Type: String
+  DBAllocatedStorage:
+    Default: 20
+    Type: Number
+  DBName:
+    Default: "{{resolve:ssm:/cde/DB_DATABASE:1}}"
+    Type: String
+  DBUser:
+    Default: "{{resolve:ssm:/cde/POSTGRES_USER:1}}"
+    Type: String
+  DBPassword:
+    Default: "{{resolve:ssm-secure:/cde/POSTGRES_PASSWORD:1}}"
+    Type: String
+    NoEcho: True
+
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DBSubnetGroup for RDS instances
+      SubnetIds:
+        - Fn::ImportValue: !Sub ${VpcStack}-PrivateSubnetDB1
+        - Fn::ImportValue: !Sub ${VpcStack}-PrivateSubnetDB2
+  
+  DatabaseMasterInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier:
+        Ref: DBInstanceIdentifier
+      DBName:
+        Ref: DBName
+      AllocatedStorage:
+        Ref: DBAllocatedStorage
+      DBInstanceClass:
+        Ref: DBInstanceClass
+      StorageType:
+        Ref: DBStorageType
+      Engine:
+        Ref: DBEngine
+      EngineVersion:
+        Ref: DBEngineVersion
+      MasterUsername:
+        Ref: DBUser
+      MasterUserPassword:
+        Ref: DBPassword
+      PubliclyAccessible: false
+      VPCSecurityGroups:
+        - Fn::ImportValue: !Sub ${VpcStack}-DatabaseSG
+      DBSubnetGroupName:
+        Ref: DBSubnetGroup
+    
+  DatabaseReadReplica:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier:
+        Ref: ReplicaInstanceIdentifier
+      AllocatedStorage:
+        Ref: DBAllocatedStorage
+      DBInstanceClass:
+        Ref: DBInstanceClass
+      SourceDBInstanceIdentifier:
+        Ref: DatabaseMasterInstance
+      SourceRegion:
+        Ref: DBSourceRegion
+      MultiAZ: True
+    
+  # Create DB_HOST in SSM Parameter Store
+  DBHostParamater:
+    Type: AWS::SSM::Parameter
+    DependsOn: DatabaseMasterInstance
+    Properties: 
+      Description: Endpoint of the RDS PostgreSQL master
+      Name: /cde/DB_HOST
+      Type: String
+      Value: !GetAtt DatabaseMasterInstance.Endpoint.Address
+  
+  # Create DB_PORT in SSM Parameter Store
+  DBPortParamater:
+    Type: AWS::SSM::Parameter
+    DependsOn: DatabaseMasterInstance
+    Properties: 
+      Description: Port of the RDS PostgreSQL master and replica
+      Name: /cde/DB_PORT
+      Type: String
+      Value: !GetAtt DatabaseMasterInstance.Endpoint.Port
+  
+  # Create DB_Replica in SSM Parameter Store
+  DBReplicaParamater:
+    Type: AWS::SSM::Parameter
+    DependsOn: DatabaseReadReplica
+    Properties: 
+      Description: Endpoint of the RDS PostgreSQL replica
+      Name: /cde/DB_Replica
+      Type: String
+      Value: !GetAtt DatabaseReadReplica.Endpoint.Address
+
+
+Outputs:
+  EndpointMaster:
+    Description: Endpoint of the newly created RDS PostgreSQL master
+    Value: !GetAtt DatabaseMasterInstance.Endpoint.Address
+  PortReadReplica:
+    Description: Endpoint of the newly created RDS PostgreSQL replica
+    Value: !GetAtt DatabaseReadReplica.Endpoint.Address
+  PortDB:
+    Description: Port of the newly created RDS PostgreSQL master and replica
+    Value: !GetAtt DatabaseMasterInstance.Endpoint.Port
+  JdbcConnString:
+    Description: "JDBC connection string of newly created RDS PostgreSQL master, w/o password"
+    Value: !Join
+      - ""
+      - - "jdbc:postgresql://"
+        - !GetAtt DatabaseMasterInstance.Endpoint.Address
+        - ":"
+        - !GetAtt DatabaseMasterInstance.Endpoint.Port
+        - "/"
+        - "{{resolve:ssm:/cde/DB_DATABASE:1}}"
+        - "?user="
+        - "{{resolve:ssm:/cde/POSTGRES_USER:1}}"
+        - "&password="
+        - ""
+  DBHostParamater:
+    Description: DB_HOST created in SSM Parameter Store
+    Value: !Ref DBHostParamater
+  DBReplicaParameter:
+    Description: DB_Replica created in SSM Parameter Store
+    Value: !Ref DBReplicaParamater
+  DBPortParamater:
+    Description: DB_PORT created in SSM Parameter Store
+    Value: !Ref DBPortParamater

@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  This template deploy a lambda functions that download the covid19's datasets
+  from internet and run the ECS Fargate task for the ETL.
+
+
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Lambda Function to download datasets from internet and run ECS tasks
+      FunctionName: downloadFileToS3
+      Handler: lambda_function.lambda_handler
+      CodeUri:
+        Bucket: "{{resolve:ssm:/cde/S3_BUCKET_LAMBDA:1}}"
+        Key: downloadFileToS3
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Runtime: python3.7
+      Timeout: 900
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 10240
+  
+  # Explicit log group that refers to the Lambda function
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${LambdaFunction}"
+      # Explicit retention time
+      RetentionInDays: 7
+
+
+Outputs:
+  Function:
+    Description: Lambda function to download datasets from internet and run ECS task
+    Value: !Ref LambdaFunction
+  LogGroup:
+    Description: Log group for lambda function
+    Value: !Ref LogGroup
