@@ -1,28 +1,48 @@
 # Data pipeline Covid19 con AWS ECS Fargate
 <br>
 
+
 ## Resumen
-Data pipeline organizado como una aplicación de alta disponibilidad en 3 capas - capa pública, capa de aplicación y capa de base de datos - que periódicamente extrae datos de una fuente pública, los transforma y los carga en un base PostgreSQL, dejando disponible un dashboard de análisis sobre Metabase que se utiliza como solución de reporting.<br>
-Se implementa CI/CD con Github Actions para realizar el build y registro de la imágen docker del ETL en Elastic Container Registry (ECR), utilizada luego por el servicio de ECS fargate para ejecutar la tarea.<br>
+
+Data pipeline que extrae, procesa y analiza datos sobre casos de Covid19 reportados y publicados por el gobierno argentino en el sitio oficial https://datos.gob.ar/dataset/salud-covid-19-casos-registrados-republica-argentina.<br>
+
+El data pipeline está organizado como una aplicación de alta disponibilidad en 3 capas - capa pública, capa de aplicación y capa de base de datos - que periódicamente extrae datos de una fuente pública, los transforma y los carga en un base PostgreSQL, dejando disponible un dashboard de análisis sobre Metabase que se utiliza como solución de reporting.<br>
+Se implementa CI/CD con GitHub Actions para realizar el build y registro de la imágen docker del ETL en Elastic Container Registry (ECR), utilizada luego por el servicio de ECS fargate para ejecutar la tarea.<br>
+
 Se utiliza Cloudformation para realizar gran parte del despliegue de la infraestructura.<br>
 Se expone a continuación la topología de red utilizada.
 <br><br>  
 
 ![diagrama](images/data-pipeline-covid19-topology.png)  
-
 <br>
+
 
 ## Descripción de la aplicación
 
 Capa Pública: 
 
+- **Bastion Host**: Se despliega un grupo de auto escalado con una sola instancias ec2 t2.micro utilizada como Bastion Host para poder gestionar la infraestructura. Esta solución permite conectar a la base de datos - sin acceso público - para realizar tareas de inicialización y mantenimiento. 
 
-- Periodicamente se invoca una función **Lambda** desde **EventBridge** que hace el download de algunos datasets que publica el gobierno argentino sobre Covid19 y los almacena en un bucket **S3**. La periodicidad dependerá de la frecuencia de actualización del dataset.<br> 
-- La función, luego de completar el download, corre una tarea de **ECS Fargate** que transforma los datasets de manera conveniente y los carga en tablas de una base **RDS** PostgreSQL. Tanto el cluster como la definición de la tarea ya existen en ECS, la función Lambda solo los invoca y setea algunos parámetros necesarios para la corrida.<br>
-- Se deplegaron 2 instancias RDS, una de tipo *master* que permite lectura/escritura y otra de tipo *replica* que solo permite operaciones de lectura (Analitics). La instancia master recibe los datos del proceso ETL y los registros necesarios para el backend de Metabase. La instancia tipo replica es la que está conectada a Metabase para exponer los análisis y dashboards generados.
-- La definición de la tarea de Fargate incluye una imágen docker almacenada en **ECR**.
-- Los logs de la tarea Fargate se almacenan en Log Groups de **CloudWatch**.
-- Se agregó un bastion host en la capa pública para poder acceder de manera segura a la base de datos desde fuera de la VPC.
+- **Matabase**: Se despliega el servicio de Metabase con un cluster ECS fargate, utilizando la RDS PostgreSQL del proyecto como backend, en lugar de la base H2 (default) que no se recomienda para ambientes productivos. El cluster ECS se implemta con Aplication Load Balancer. 
+
+
+Capa de Aplicación:
+
+- **ETL**: Se desliega otro cluster ECS fargate que ejecuta la tarea de ETL desarrollada en Python. El código del ETL está sobre un repositorio GitHub - https://github.com/jdanussi/data-pipeline-covid19-etl - conectado con el servicio de ECR por medio de GitHub Actions, que realiza el build y registro de la imagen docker cada vez que se "pushea" el main branch. 
+
+
+Capa de Base de Datos:
+
+
+- **PostgreSQL**: Se despliega una RDS PostgreSQL con una read replica Multi-AZ. La instancia de tipo *master* - lectura/escritura - es utilizada por el ETL para cargar los datos procesados, y por Metabase como backend de su operación. La instancia de tipo *replica* - solo lectura - es utilizada por Metabase para acceder a los datos y mostrar los dashboard previamente generados.
+<br><br>
+
+
+## Flujo de pa aplicación
+
+- Periodicamente con un cron schedule se invoca una función **Lambda** desde **EventBridge** que hace el download de los datasets desde la ṕagina donde se publican y los almacena en un bucket **S3**. La periodicidad dependerá de la frecuencia de actualización de los dataset.<br>
+
+- La función, luego de completar el download, corre una tarea de **ECS fargate** que transforma los datos de manera conveniente y los carga en tablas de la instancia RDS master de PostgreSQL. Tanto el cluster como la definición de la tarea ya existen en ECS, la función Lambda solo los invoca y setea algunos parámetros necesarios para la corrida.<br>
 
 <br>
 
