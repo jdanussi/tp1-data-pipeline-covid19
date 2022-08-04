@@ -40,26 +40,90 @@ Se expone a continuación la topología de red utilizada.
 <br><br>
 
 
-## Flujo de pa aplicación
+## Flujo de la aplicación
 
 - Periodicamente con un cron schedule se invoca una función **Lambda** desde **EventBridge** que hace el download de los datasets desde la ṕagina donde se publican y los almacena en un bucket **S3**. La periodicidad dependerá de la frecuencia de actualización de los dataset.<br>
 
 - La función, luego de completar el download, corre una tarea de **ECS fargate** que transforma los datos de manera conveniente y los carga en tablas de la instancia RDS master de PostgreSQL. Tanto el cluster como la definición de la tarea ya existen en ECS, la función Lambda solo los invoca y setea algunos parámetros necesarios para la corrida.<br>
+La tarea de ETL no corre como un servicio dentro de ECS de manera permanente sino que es lanzada por la función lambda y la misma se termina una vez que completa el proceso. Por lo tanto la tarea implica un costo solo por los recursos que utiliza durante el tiempo de la corrida.
+
+- Un dashboard con análisis de los datos queda siempre disponible sobre Metabase, desplegado por un servicio sobre ECS fargate que corre de forma permanente. Se ideo así para que la capa de reporting y analitics este disponible para este o cualquier otro proyecto de datos que se quiera desarrollar en la VPC.<br>
+A Metabase se accede mediante el nombre ṕublico DNS del Aplication Load Balancer que hace de frontend del grupo de auto escalado del servicio ECS.<br> 
 
 <br>
 
-## Topología de red utilizada
+## Despliegue de la infraestructura
 
-- Se incluyen 2 zonas de disponibilidad para que la solución sea de alta disponibilidad.
+Se despliega gran parte de la infraestructura utilizando AWS CLI con templates de Cloudformation.
 
-- Se estructura la solución en 3 capas:
-    - **Capa pública:** public-tier (sobre subnets públicas)<br>
-        Bastion host sobre un grupo de auto escalado sin balanceador conpuesto por 1 sola instancia ec2 (Mínimo/Máximo/Deseado). El grupo de autoescalado esta seteado sobre 2 subnets / AZs.
-    - **Capa de aplicación:** app-tier (sobre subnets privadas)<br>
-        Cluster ECS Fargate sobre 2 subnets / AZs.
-    - **Capa de base de datos:** db-tier (sobre subnets privadas)<br>
-        RDS con la opción Multi-AZ habilitada.
+A continuación se describe la secuencia de pasos a seguir dentro del ambiente de laboratorio otorgado por awsacademy:
 
+- Actualizar credenciales AWS en el entorno local: Crear profile "cde" en ~/.aws/credentials con las credenciales temporales otorgadas por el entorno de laboratorio.
+
+![diagrama](images/02_aws_credentials_profile.png)  
+
+- Agregar al IAM role "LabRole" la siguiente inline policy "SSMParameterStoreFullAccess" que permite acceso full a System Manager Parameter Store, servicio utilizado pos la aplicación para gestión de parámetros.
+
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": ["ssm:*"],
+                    "Resource": ["*"]
+                }
+            ]
+        }
+
+<br>
+
+![diagrama](images/03_ssm_parameter_store_policy.png) 
+
+- Crear el Key Pair "BastionHost", hacer el download y setear los permisos correctamente:
+
+        $cd ~/.ssh
+        $ mv ~/Downloads/BastionHost.pem .
+        $ chmod 400 BastionHost.pem
+
+- Parados en la carpeta root del proyecto, desplegar con **01-vpc.yml** los siguientes recursos: 
+  1 VPC
+  2 public subnets spread across 2 AZs for internet facing services (Public tier).
+  2 private subnets spread across 2 AZs for data pipeline tier (Data pipeline tier).
+  2 private subnets spread across 2 AZs for database (Database tier).
+  1 Internet Gateway on the public subnets for internet access.
+  3 Route tables, one for each tier. 
+  6 VPC Endpoints.
+  5 Security groups.
+  The NACLs for private subnets were customized to restric access. 
+
+
+        $aws cloudformation create-stack \
+            --stack-name vpc-prod \
+            --template-body file://cfn-templates/01-vpc.yml \
+            --profile cde
+
+
+- Registrar en System Manager Parameter Store los siguiente parámetros iniciales:
+
+/cde/POSTGRES_USER \
+/cde/POSTGRES_PASSWORD \
+/cde/DB_DATABASE \
+/cde/DB_USER \
+/cde/DB_PASS \
+/cde/S3_BUCKET_DATASETS \
+/cde/S3_BUCKET_REPORT \
+/cde/S3_BUCKET_LAMBDA \
+/cde/ECS_CLUSTER \
+/cde/ECS_TASK_DEFINITION \
+
+<br>
+utilizando el script de bash **parameter_store_values_put.sh** que se encuentra en la carpeta root del proyecto: 
+
+        $ bash parameter_store_values_put.sh
+
+
+
+# HASTA ACA #
 - Se implementan varios VPC Endpoints (los mínimos necesarios) para que la capa de aplicación pueda correr con éxito:
     - S3 endpoint para bajar/subir archivos de/a los buckets.
     - ECR-dkr y ECR-api para poder consultar/obtener desde el registro las imágenes de los contenedores.
