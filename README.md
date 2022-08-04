@@ -86,15 +86,15 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         $ chmod 400 BastionHost.pem
 
 - Parados en la carpeta root del proyecto, desplegar con **01-vpc.yml** los siguientes recursos: 
-  1 VPC
-  2 public subnets spread across 2 AZs for internet facing services (Public tier).
-  2 private subnets spread across 2 AZs for data pipeline tier (Data pipeline tier).
-  2 private subnets spread across 2 AZs for database (Database tier).
-  1 Internet Gateway on the public subnets for internet access.
-  3 Route tables, one for each tier. 
-  6 VPC Endpoints.
-  5 Security groups.
-  The NACLs for private subnets were customized to restric access. 
+  - 1 VPC
+  - 2 public subnets spread across 2 AZs for internet facing services (Public tier).
+  - 2 private subnets spread across 2 AZs for data pipeline tier (Data pipeline tier).
+  - 2 private subnets spread across 2 AZs for database (Database tier).
+  - 1 Internet Gateway on the public subnets for internet access.
+  - 3 Route tables, one for each tier. 
+  - 6 VPC Endpoints.
+  - 5 Security groups.
+  - The NACLs for private subnets were customized to restric access. 
 
 
         $aws cloudformation create-stack \
