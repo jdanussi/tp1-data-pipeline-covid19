@@ -117,6 +117,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 /cde/ECS_TASK_DEFINITION \
 
 <br>
+
 utilizando el script de bash **parameter_store_values_put.sh** que se encuentra en la carpeta root del proyecto: 
 
         $ bash parameter_store_values_put.sh
