@@ -1,9 +1,10 @@
-# Data pipeline Covid19 utilizando AWS ECS Fargate, RDS, Lambda, EventBridge, ECR, S3 y CloudWatch
+# Data pipeline Covid19 con AWS ECS Fargate
 <br>
 
 ## Resumen
-
-Se adapto el data pipeline presentado en el TP final de foundations para que corra en AWS ECS, con tareas de tipo Fargate pero utilizando una RDS PostgreSQL como base de datos.
+Data pipeline organizado como una aplicación de alta disponibilidad en 3 capas - capa pública, capa de aplicación y capa de base de datos - que periódicamente extrae datos de una fuente pública, los transforma y los carga en un base PostgreSQL, dejando disponible un dashboard de análisis sobre Metabase que se utiliza como solución de reporting.<br>
+Se implementa CI/CD con Github Actions para realizar el build y registro de la imágen docker del ETL en Elastic Container Registry (ECR), utilizada luego por el servicio de ECS fargate para ejecutar la tarea.<br>
+Se utiliza Cloudformation para realizar gran parte del despliegue de la infraestructura.<br>
 Se expone a continuación la topología de red utilizada.
 <br><br>  
 
@@ -13,10 +14,13 @@ Se expone a continuación la topología de red utilizada.
 
 ## Descripción de la aplicación
 
-- Diariamente a las 22.00 hs se invoca una función **Lambda** desde **EventBridge** que hace el download de algunos datasets que publica el gobierno argentino sobre Covid19 y los almacena en un bucket **S3**. <br> 
-- La función, luego de completar el download, corre una tarea de **ECS Fargate** que transforma los datasets de manera conveniente y los carga en tablas de una base **RDS** PostgreSQL. Tanto el cluster como la definición de la tarea ya existen en ECS, la función Lambda solo los invoca.<br>
-- La tarea de ECS Fargate hace un upload del reporte generado en otro bucket S3.
-- La definición de la tarea de Fargate incluye imágenes de contenedores almacenadas en **ECR**.
+Capa Pública: 
+
+
+- Periodicamente se invoca una función **Lambda** desde **EventBridge** que hace el download de algunos datasets que publica el gobierno argentino sobre Covid19 y los almacena en un bucket **S3**. La periodicidad dependerá de la frecuencia de actualización del dataset.<br> 
+- La función, luego de completar el download, corre una tarea de **ECS Fargate** que transforma los datasets de manera conveniente y los carga en tablas de una base **RDS** PostgreSQL. Tanto el cluster como la definición de la tarea ya existen en ECS, la función Lambda solo los invoca y setea algunos parámetros necesarios para la corrida.<br>
+- Se deplegaron 2 instancias RDS, una de tipo *master* que permite lectura/escritura y otra de tipo *replica* que solo permite operaciones de lectura (Analitics). La instancia master recibe los datos del proceso ETL y los registros necesarios para el backend de Metabase. La instancia tipo replica es la que está conectada a Metabase para exponer los análisis y dashboards generados.
+- La definición de la tarea de Fargate incluye una imágen docker almacenada en **ECR**.
 - Los logs de la tarea Fargate se almacenan en Log Groups de **CloudWatch**.
 - Se agregó un bastion host en la capa pública para poder acceder de manera segura a la base de datos desde fuera de la VPC.
 
