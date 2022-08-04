@@ -122,6 +122,26 @@ utilizando el script de bash **parameter_store_values_put.sh** que se encuentra 
 
         $ bash parameter_store_values_put.sh
 
+- Desplegar el grupo de auto escalado para Bastion Host en la capa pública con el template **02-asg.yml**
+
+        aws cloudformation create-stack \
+            --stack-name asg-prod \
+            --template-body file://cfn-templates/02-asg.yml \
+            --profile cde
+
+- Desplegar la instancias RDS master y replica en la capa de base de datos utilizando el template **03-rds.yml**
+
+        aws cloudformation create-stack \
+            --stack-name rds-prod \
+            --template-body file://cfn-templates/03-rds.yml \
+            --profile cde
+
+El template registra en Parameter Store los endpoints de ambas instancias.
+
+
+
+
+
 
 
 # HASTA ACA #
