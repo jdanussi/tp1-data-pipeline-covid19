@@ -84,14 +84,16 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
     ![diagrama](images/03_ssm_parameter_store_policy.png) 
     <br>
 
-- Crear el Key Pair *BastionHost* que se utilizará para acceso ssh al bastion host. Hacer el download del archivo .pem correspondiente y setear los permisos
+- Crear el Key Pair *BastionHost* que se utilizará para acceso ssh al bastion host. 
+
+    ![diagrama](images/key_pair01.png)
+
+  Hacer el download del archivo .pem correspondiente y setear los permisos
 
         $> cd ~/.ssh
         $> mv ~/Downloads/BastionHost.pem .
         $> chmod 400 BastionHost.pem
 
-
-    ![diagrama](images/key_pair.png)
 
 - Parados en la carpeta root del proyecto, crear el stack *vpc-prod* utilizando el template `01-vpc.yml` 
 
