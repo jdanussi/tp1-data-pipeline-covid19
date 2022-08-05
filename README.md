@@ -174,7 +174,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
             --template-body file://cfn-templates/04-s3.yml \
             --profile cde
 
-    ![diagrama](images/s3.png)
+    ![diagrama](images/s301.png)
 
 
 - Crear el stack *ecr-prod* que despliega en ECR el repositorio *python-etl* que luego alojará la imagen docker del ETL que ejecuta la tarea ECS. Se utiliza el template `05-ecr.yml`
@@ -295,6 +295,9 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
   ![diagrama](images/ecs02.png)
 
+  y las task definition de los clusters creados
+
+  ![diagrama](images/ecs_tasks.png)
 
 - Se muestra el despliegue exitoso de algunos stacks de Cloudformation
 
@@ -340,7 +343,7 @@ Servicio de Metabase
 ### S3
 Bucket donde se guardan los datasets descargados
 
-![diagrama](images/s3_02.png)
+![diagrama](images/s302.png)
 
 <br>
 
