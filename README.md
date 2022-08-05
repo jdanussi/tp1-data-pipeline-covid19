@@ -251,7 +251,6 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
     ![diagrama](images/ecs01.png)
 
 
-
     Crear el cluster ECS y la task definition *dashboard-cluster* que despliega el servicio de Metabase. Reemplazar previamente en la task definition la variable de entorno `MB_DB_HOST` con el endpoint de la instancia RDS master
     
 
@@ -296,7 +295,8 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
   ![diagrama](images/ecs02.png)
 
-  y las task definition de los clusters creados
+
+  tasks definition de los clusters creados
 
   ![diagrama](images/ecs_tasks.png)
 
@@ -306,7 +306,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
 
 
-- Crear en *EventBridge* un cron schedule semanal - el dataset de casos covid19 se actualiza todos los domingos - que ejecute la función lambda encarga del download de los datasets y de lanzar la tarea ECS que corre el ETL.
+- Crear en *EventBridge* un cron schedule semanal - el dataset de casos covid19 se actualiza todos los domingos - que ejecute la función lambda encarga del download de los datasets y de lanzar la tarea de ETL.
 
         $> aws events put-rule --schedule-expression "cron(00 00 ? * 2 2022-2023)" --name Covid19 --profile cde
         {
@@ -319,7 +319,9 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         jorge:tp1-data-pipeline-covid19$ 
 
 
+
     ![diagrama](images/event_bridge_rule01.png)
+
 
     ![diagrama](images/event_bridge_rule02.png)
 
@@ -331,12 +333,17 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 <br>
 
 Lamba function
+
 ![diagrama](images/cloudwatch_logs02.png)
 
-Tarea ETL 
+
+Tarea ETL
+
 ![diagrama](images/cloudwatch_logs03.png)
 
+
 Servicio de Metabase
+
 ![diagrama](images/cloudwatch_logs04.png)
 
 <br>
