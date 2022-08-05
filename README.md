@@ -58,12 +58,13 @@ Se despliega gran parte de la infraestructura utilizando AWS CLI con templates d
 
 A continuación se describe la secuencia de pasos a seguir dentro del ambiente de laboratorio otorgado por awsacademy.
 
-Actualizar credenciales AWS en el entorno local: Crear profile "cde" en `~/.aws/credentials` con las credenciales temporales otorgadas por el entorno de laboratorio.
+- Actualizar credenciales AWS en el entorno local: Crear profile "cde" en `~/.aws/credentials` con las credenciales temporales otorgadas por el entorno de laboratorio.
 
-![diagrama](images/02_aws_credentials_profile.png)  
+    ![diagrama](images/02_aws_credentials_profile.png)  
 
 <br>
-Agregar al IAM role *LabRole* la siguiente inline policy
+
+- Agregar al IAM role *LabRole* la siguiente inline policy
 
         {
             "Version": "2012-10-17",
@@ -77,10 +78,10 @@ Agregar al IAM role *LabRole* la siguiente inline policy
         }
 
 
- que permite full access al servicio de System Manager Parameter Store utilizado por la aplicación para la gestión de parámetros. 
- <br>
+    que permite full access al servicio de System Manager Parameter Store utilizado por la aplicación para la gestión de parámetros. 
+    <br>
 
-![diagrama](images/03_ssm_parameter_store_policy.png) 
+    ![diagrama](images/03_ssm_parameter_store_policy.png) 
 <br>
 
 - Crear el Key Pair *BastionHost* que se utilizará para acceso ssh al bastion host. Hacer el download del archivo .pem correspondiente y setear los permisos
