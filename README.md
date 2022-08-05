@@ -56,13 +56,14 @@ A Metabase se accede mediante el nombre ṕublico DNS del Aplication Load Balanc
 
 Se despliega gran parte de la infraestructura utilizando AWS CLI con templates de Cloudformation.
 
-A continuación se describe la secuencia de pasos a seguir dentro del ambiente de laboratorio otorgado por awsacademy:
+A continuación se describe la secuencia de pasos a seguir dentro del ambiente de laboratorio otorgado por awsacademy.
 
-- Actualizar credenciales AWS en el entorno local: Crear profile "cde" en ~/.aws/credentials con las credenciales temporales otorgadas por el entorno de laboratorio.
+Actualizar credenciales AWS en el entorno local: Crear profile "cde" en `~/.aws/credentials` con las credenciales temporales otorgadas por el entorno de laboratorio.
 
 ![diagrama](images/02_aws_credentials_profile.png)  
 
-- Agregar al IAM role "LabRole" la siguiente inline policy "SSMParameterStoreFullAccess" que permite acceso full a System Manager Parameter Store, servicio utilizado pos la aplicación para gestión de parámetros.
+<br>
+Agregar al IAM role *LabRole* la siguiente inline policy
 
         {
             "Version": "2012-10-17",
@@ -75,74 +76,113 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
             ]
         }
 
-<br>
+
+ que permite full access al servicio de System Manager Parameter Store utilizado por la aplicación para la gestión de parámetros. 
+ <br>
 
 ![diagrama](images/03_ssm_parameter_store_policy.png) 
+<br>
 
-- Crear el Key Pair "BastionHost", hacer el download y setear los permisos correctamente:
+- Crear el Key Pair *BastionHost* que se utilizará para acceso ssh al bastion host. Hacer el download del archivo .pem correspondiente y setear los permisos
 
-        $cd ~/.ssh
-        $ mv ~/Downloads/BastionHost.pem .
-        $ chmod 400 BastionHost.pem
+        $> cd ~/.ssh
+        $> mv ~/Downloads/BastionHost.pem .
+        $> chmod 400 BastionHost.pem
 
-- Parados en la carpeta root del proyecto, desplegar con **01-vpc.yml** los siguientes recursos: 
-  - 1 VPC
-  - 2 public subnets spread across 2 AZs for internet facing services (Public tier).
-  - 2 private subnets spread across 2 AZs for data pipeline tier (Data pipeline tier).
-  - 2 private subnets spread across 2 AZs for database (Database tier).
-  - 1 Internet Gateway on the public subnets for internet access.
-  - 3 Route tables, one for each tier. 
-  - 6 VPC Endpoints.
-  - 5 Security groups.
-  - The NACLs for private subnets were customized to restric access. 
+<br>
 
+- Parados en la carpeta root del proyecto, crear el stack *vpc-prod* utilizando el template `01-vpc.yml` 
 
-        $aws cloudformation create-stack \
+        $> aws cloudformation create-stack \
             --stack-name vpc-prod \
             --template-body file://cfn-templates/01-vpc.yml \
             --profile cde
 
 
-- Registrar en System Manager Parameter Store los siguiente parámetros iniciales:
+    El stack despliega y configura los siguientes recursos:
 
-/cde/POSTGRES_USER \
-/cde/POSTGRES_PASSWORD \
-/cde/DB_DATABASE \
-/cde/DB_USER \
-/cde/DB_PASS \
-/cde/S3_BUCKET_DATASETS \
-/cde/S3_BUCKET_REPORT \
-/cde/S3_BUCKET_LAMBDA \
-/cde/ECS_CLUSTER \
-/cde/ECS_TASK_DEFINITION \
+  - 1 VPC
+  - 2 subnets públicas distribuídas en 2 zonas de disponibilidad para los servicios públicos (Public tier).
+  - 2 subnets privadas distribuídas en 2 zonas de disponibilidad para alojar la corrida del ETL (Data pipeline tier).
+  - 2 subnets privadas distribuídas en 2 zonas de disponibilidad para alojar la base de datos (Database tier).
+  - 1 Internet Gateway para permitir el acceso a internet de las subnets públicas.
+  - 3 tablas de rutas, una por cada capa. 
+  - 6 VPC Endpoints.
+  - 5 Security groups.
+  - Personalización de los NACLs asociados a las subnets privadas para hacerlos más restrictivos.
+<br><br>
 
-<br>
 
-utilizando el script de bash **parameter_store_values_put.sh** que se encuentra en la carpeta root del proyecto: 
+- Registrar en System Manager Parameter Store los siguiente parámetros iniciales
 
-        $ bash parameter_store_values_put.sh
+    - /cde/POSTGRES_USER
+    - /cde/POSTGRES_PASSWORD 
+    - /cde/DB_DATABASE 
+    - /cde/DB_USER 
+    - /cde/DB_PASS 
+    - /cde/S3_BUCKET_DATASETS 
+    - /cde/S3_BUCKET_REPORT 
+    - /cde/S3_BUCKET_LAMBDA 
+    - /cde/ECS_CLUSTER 
+    - /cde/ECS_TASK_DEFINITION 
+    <br><br>
 
-- Desplegar el grupo de auto escalado para Bastion Host en la capa pública con el template **02-asg.yml**
+    utilizando el script de bash `parameter_store_values_put.sh` que se encuentra en la carpeta root del proyecto: 
 
-        aws cloudformation create-stack \
+        $> bash parameter_store_values_put.sh
+
+- Crear el stack *asg-prod* que despliega un grupo de auto escalado en la capa pública para el Bastion Host, utilizando el template `02-asg.yml`
+
+        $> aws cloudformation create-stack \
             --stack-name asg-prod \
             --template-body file://cfn-templates/02-asg.yml \
             --profile cde
 
-- Desplegar la instancias RDS master y replica en la capa de base de datos utilizando el template **03-rds.yml**
+- Crear el stack *rds-prod* que despliega las instancias RDS master y replica en la capa de base de datos utilizando el template `03-rds.yml`
 
-        aws cloudformation create-stack \
+        $> aws cloudformation create-stack \
             --stack-name rds-prod \
             --template-body file://cfn-templates/03-rds.yml \
             --profile cde
 
-El template registra en Parameter Store los endpoints de ambas instancias.
+    El template registra en Parameter Store los endpoints de ambas instancias.
 
+- Crear el stack *s3-prod* que despliega los buckets S3 para almacenar los datasets fuente y la distribución de la función lambda que se creará más adelante. Se utiliza el template `04-s3.yml`
 
+        $> aws cloudformation create-stack \
+            --stack-name s3-prod \
+            --template-body file://cfn-templates/04-s3.yml \
+            --profile cde
 
+- Crear el stack *ecr-prod* que despliega en ECR el repositorio *python-etl* que luego alojará la imagen docker del ETL que ejecuta la tarea ECS. Se utiliza el template `05-ecr.yml`
 
+        $> aws cloudformation create-stack \
+            --stack-name ecr-prod \
+            --template-body file://cfn-templates/05-ecr.yml \
+            --profile cde
 
+- Subir a S3 el archivo .zip necesario para el deploy de la función lambda
 
+        $> cd downloadFileToS3
+        $> aws s3api put-object --bucket pipeline-covid19-lambda-functions --key downloadFileToS3 --profile cde --body ./lambda_function.zip
+
+- Crear el stack *lambda-prod* que despliega la función lambda encargada de hacer el download de los datasets desde las fuentes, y de ejecutar la tarea ETL sobre el servicio ECS fargate. Se utiliza el template `06-lambda.yml`
+
+        $> aws cloudformation create-stack \
+            --stack-name lambda-prod \
+            --template-body file://cfn-templates/06-lambda.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --capabilities CAPABILITY_AUTO_EXPAND \
+            --profile cde
+
+    Este despliegue genera el grupo de log correspondiente en Cloudwatch.
+
+- Crear el stack *logs-prod* que despliega los grupos de log en Cloudwatch para las tareas ECS. Se utiliza el template `07-logs.yml`
+
+        $> aws cloudformation create-stack \
+            --stack-name LOGS01 \
+            --template-body file://cfn-templates/07-logs.template.yaml \
+            --profile cde
 
 # HASTA ACA #
 - Se implementan varios VPC Endpoints (los mínimos necesarios) para que la capa de aplicación pueda correr con éxito:
