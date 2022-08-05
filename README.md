@@ -221,26 +221,19 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         $> aws ecs create-cluster --cluster-name data-pipeline-cluster --profile cde
         $> aws ecs register-task-definition --cli-input-json file://$PWD/data-pipeline-cluster.json --profile cde
 
- ![diagrama](images/ecs01.png)
+
+    ![diagrama](images/ecs01.png)
+
 
 
     Crear el cluster ECS y la task definition *dashboard-cluster* que despliega el servicio de Metabase. Reemplazar previamente en la task definition la variable de entorno `MB_DB_HOST` con el endpoint de la instancia RDS master
     
+
         $> aws ecs create-cluster --cluster-name dashboard-cluster --profile cde
         $> aws ecs register-task-definition --cli-input-json file://$PWD/dashboard-cluster.json --profile cde
 
 
-Resumen de como quedó configurado el servicio
-
- ![diagrama](images/ecs14.png)
-
- ![diagrama](images/ecs15.png)
-
- ![diagrama](images/ecs16.png)
-
- ![diagrama](images/ecs03.png)
-
- ![diagrama](images/ecs02.png)
+    
 
 
 - En el repositorio GitHub del ETL, actualizar los secrets de GitHub Actions con las credenciales temporales otorgadas por el entorno de laboratorio. Luego hacer un deploy manual para forzar el building de la imagen docker del ETL y su registro en el repositorio *python-etl* de ECR.
@@ -249,27 +242,62 @@ Resumen de como quedó configurado el servicio
 
 - Finalmente crear un Aplication Load Balancer y un target group para soporte del despligue de Metabase a realizar con ECS fargate.
 
-![diagrama](images/dashboard_elb01.png) 
+    ![diagrama](images/dashboard_elb01.png) 
 
-![diagrama](images/dashboard_elb02.png) 
-
-
-El target group
-
- ![diagrama](images/dashboard_target_group01.png) 
-
- ![diagrama](images/dashboard_target_group02.png)
-
- ![diagrama](images/dashboard_target_group03.png)
+    ![diagrama](images/dashboard_elb02.png) 
 
 
-![diagrama](images/meta_dash01.png)
+    El target group
 
-![diagrama](images/meta_dash02.png)
+    ![diagrama](images/dashboard_target_group01.png) 
 
-![diagrama](images/meta_dash03.png)
+    ![diagrama](images/dashboard_target_group02.png)
 
-![diagrama](images/meta_dash04.png)
+    ![diagrama](images/dashboard_target_group03.png)
+
+
+- Habiendo creado el ELB y el target group, continuar con la creación del servicio fargate  correspondiente 
+
+  ![diagrama](images/ecs14.png)
+
+  ![diagrama](images/ecs15.png)
+
+  ![diagrama](images/ecs16.png)
+
+  ![diagrama](images/ecs03.png)
+
+  ![diagrama](images/ecs02.png)
+
+
+- Crear en *EventBridge* un cron schedule semanal - el dataset de casos covid19 se actualiza todos los domingos - que ejecute la función lambda encarga del download de los datasets y de lanzar la tarea ECS que corre el ETL.
+
+        $> aws events put-rule --schedule-expression "cron(00 00 ? * 2 2022-2023)" --name Covid19 --profile cde
+        {
+            "RuleArn": "arn:aws:events:us-east-1:857358382878:rule/Covid19"
+        }
+        jorge:tp1-data-pipeline-covid19$ aws events put-rule --schedule-expression "cron(00 00 ? * 2 2022-2023)" --name Covid19 --description "Run Covid19 Lambda function" --profile cde
+        {
+            "RuleArn": "arn:aws:events:us-east-1:857358382878:rule/Covid19"
+        }
+        jorge:tp1-data-pipeline-covid19$ 
+
+
+    ![diagrama](images/event_bridge_rule01.png)
+
+    ![diagrama](images/event_bridge_rule02.png)
+
+
+- Una vez ejecutada la regla, las tablas de la base covid19 estarán pobladas con datos y podemos continuar con la creación de una  dashboard de análisis en Metabase. A continuación se muestra el creado para este caso<br>
+
+
+    ![diagrama](images/meta_dash01.png)
+
+    ![diagrama](images/meta_dash02.png)
+
+    ![diagrama](images/meta_dash03.png)
+
+    ![diagrama](images/meta_dash04.png)
+
 
 
 # HASTA ACA #
