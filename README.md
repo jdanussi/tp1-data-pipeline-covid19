@@ -193,7 +193,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
     Hacemos el ssh forwarding para que toda conexión al puerto 4000 del equipo local sea dirigida al master RDS endpoint a travez del bastion host  
 
-    $> ssh -N -L 4000:database-master.c5ky66tbevcc.us-east-1.rds.amazonaws.com:5432 ec2-user@bastionlab -i ~/.ssh/BastionHost.pem -v
+        $> ssh -N -L 4000:database-master.c5ky66tbevcc.us-east-1.rds.amazonaws.com:5432 ec2-user@bastionlab -i ~/.ssh/BastionHost.pem -v
 
     Si hace falta eliminamos el registro anterior de `known_hosts`
 
