@@ -185,6 +185,31 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
             --template-body file://cfn-templates/07-logs.template.yaml \
             --profile cde
 
+
+- Inicializar la base de datos utizando el bastion host para acceder. Para ello agregamos la Elastic Public IP (EIP) del Bastion Host en `/etc/hosts`. Ejemplo
+
+        54.225.211.158 bastionlab
+
+
+    Hacemos el ssh forwarding para que toda conexión al puerto 4000 del equipo local sea dirigida al master RDS endpoint a travez del bastion host  
+
+    $> ssh -N -L 4000:database-master.c5ky66tbevcc.us-east-1.rds.amazonaws.com:5432 ec2-user@bastionlab -i ~/.ssh/BastionHost.pem -v
+
+    Si hace falta eliminamos el registro anterior de `known_hosts`
+
+        $> ssh-keygen -f "/home/jorge/.ssh/known_hosts" -R "bastionlab"
+
+    Crear las tablas necesarias en la base *covid19*
+
+        $> cd python-scripts
+        $> python3 ./db_init.py
+        Connection to database created
+        Database info: ('PostgreSQL 13.4 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 7.3.1 20180712 (Red Hat 7.3.1-12), 64-bit',)
+        Pagila SQL scripts executed
+        Number of database tables: 3
+        Database connection closed
+
+
 # HASTA ACA #
 - Se implementan varios VPC Endpoints (los mínimos necesarios) para que la capa de aplicación pueda correr con éxito:
     - S3 endpoint para bajar/subir archivos de/a los buckets.
