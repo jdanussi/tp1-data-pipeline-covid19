@@ -223,6 +223,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
  ![diagrama](images/ecs01.png)
 
+
     Crear el cluster ECS y la task definition *dashboard-cluster* que despliega el servicio de Metabase. Reemplazar previamente en la task definition la variable de entorno `MB_DB_HOST` con el endpoint de la instancia RDS master
     
         $> aws ecs create-cluster --cluster-name dashboard-cluster --profile cde
