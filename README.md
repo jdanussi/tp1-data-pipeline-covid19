@@ -25,7 +25,7 @@ Se expone a continuación la arquitectura utilizada para la solución.
 
 - Bastion Host: Se despliega un grupo de autoescalado con una sola instancia ec2 de tipo t2.micro utilizada como Bastion Host para poder gestionar la infraestructura. Esta solución permite conectar a la base de datos - sin acceso público - para realizar tareas de inicialización y mantenimiento. <br>
 Como será un servicio utilizado por pocas personas del área de IT, no se prevee autoescalado por demanda. Se configura un grupo de 1 sola instancia para asegurar alta disponibilidad.<br>
-Para poder mapear siempre la misma EIP al servicio, se configura el launch template del grupo de autoescalado con la siguiente bootstrap script, incluído en el template de cloudformation que despliega este recurso:
+Para poder mapear siempre la misma EIP al servicio, se configura el launch template del grupo de autoescalado con el siguiente bootstrap script, incluído en el template de cloudformation que despliega este recurso:
 
             #!/bin/bash
             INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
@@ -58,7 +58,7 @@ Para poder mapear siempre la misma EIP al servicio, se configura el launch templ
 - La función, luego de completar el download, corre una tarea de *ECS fargate* que transforma los datos de manera conveniente y los carga en tablas de la instancia RDS master de PostgreSQL. <br>
 La tarea de ETL no corre como un servicio dentro de ECS sino que es lanzada por la función lambda y la misma se termina una vez completado el proceso. 
 
-- Un dashboard con análisis de los datos queda siempre disponible sobre Metabase, desplegado por un servicio de ECS fargate que corre de forma permanente. Se ideo así para que la capa de análisis y reporting quede disponible para cualquier otro proyecto de datos que se quiera en la VPC.<br>
+- Un dashboard con análisis de los datos queda siempre disponible sobre Metabase, desplegado por un servicio de ECS fargate que corre de forma permanente. Se ideo así para que la capa de análisis y reporting quede disponible para cualquier otro proyecto de datos que se requiera en la VPC.<br>
 A Metabase se accede mediante el nombre ṕublico DNS del Aplication Load Balancer que hace de frontend al grupo de auto escalado del servicio ECS fargate.<br> 
 
 <br>
@@ -333,6 +333,8 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         Number of database tables: 3
         Database connection closed
 
+    Los detalles de este script pueden verse en el repositorio del proyecto.
+    
     Crear la base de datos para soporte de Metabase
 
         $> psql -h localhost -p 4000 -v ON_ERROR_STOP=1 -U postgres<<-EOSQL
