@@ -209,6 +209,67 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         Number of database tables: 3
         Database connection closed
 
+    Crear la base de datos para soporte de Metabase
+
+        $> psql -h localhost -p 4000 -v ON_ERROR_STOP=1 -U postgres<<-EOSQL
+        CREATE DATABASE metabase WITH ENCODING = 'UTF8';
+        EOSQL
+
+
+    Crear el cluster ECS y la task definition *data-pipeline-cluster*
+
+        $> aws ecs create-cluster --cluster-name data-pipeline-cluster --profile cde
+        $> aws ecs register-task-definition --cli-input-json file://$PWD/data-pipeline-cluster.json --profile cde
+
+ ![diagrama](images/ecs01.png)
+
+    Crear el cluster ECS y la task definition *dashboard-cluster* que despliega el servicio de Metabase. Reemplazar previamente en la task definition la variable de entorno `MB_DB_HOST` con el endpoint de la instancia RDS master
+    
+        $> aws ecs create-cluster --cluster-name dashboard-cluster --profile cde
+        $> aws ecs register-task-definition --cli-input-json file://$PWD/dashboard-cluster.json --profile cde
+
+
+Resumen de como quedó configurado el servicio
+
+ ![diagrama](images/ecs14.png)
+
+ ![diagrama](images/ecs15.png)
+
+ ![diagrama](images/ecs16.png)
+
+ ![diagrama](images/ecs03.png)
+
+ ![diagrama](images/ecs02.png)
+
+
+- En el repositorio GitHub del ETL, actualizar los secrets de GitHub Actions con las credenciales temporales otorgadas por el entorno de laboratorio. Luego hacer un deploy manual para forzar el building de la imagen docker del ETL y su registro en el repositorio *python-etl* de ECR.
+
+ ![diagrama](images/03_ssm_parameter_store_policy.png) 
+
+- Finalmente crear un Aplication Load Balancer y un target group para soporte del despligue de Metabase a realizar con ECS fargate.
+
+![diagrama](images/dashboard_elb01.png) 
+
+![diagrama](images/dashboard_elb02.png) 
+
+
+El target group
+
+ ![diagrama](images/dashboard_target_group01.png) 
+
+ ![diagrama](images/dashboard_target_group02.png)
+
+ ![diagrama](images/dashboard_target_group03.png)
+
+
+![diagrama](images/meta_dash01.png)
+
+![diagrama](images/meta_dash02.png)
+
+![diagrama](images/meta_dash03.png)
+
+![diagrama](images/meta_dash04.png)
+
 
 # HASTA ACA #
 - Se implementan varios VPC Endpoints (los mínimos necesarios) para que la capa de aplicación pueda correr con éxito:
