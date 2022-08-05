@@ -42,9 +42,9 @@ Se expone a continuación la topología de red utilizada.
 
 ## Flujo de la aplicación
 
-- Periodicamente con un cron schedule se invoca una función **Lambda** desde **EventBridge** que hace el download de los datasets desde la ṕagina donde se publican y los almacena en un bucket **S3**. La periodicidad dependerá de la frecuencia de actualización de los dataset.<br>
+- Periodicamente con un cron schedule se invoca una función *Lambda* desde *EventBridge* que hace el download de los datasets desde la ṕagina donde se publican y los almacena en un bucket *S3*. La periodicidad dependerá de la frecuencia de actualización de los dataset.<br>
 
-- La función, luego de completar el download, corre una tarea de **ECS fargate** que transforma los datos de manera conveniente y los carga en tablas de la instancia RDS master de PostgreSQL. Tanto el cluster como la definición de la tarea ya existen en ECS, la función Lambda solo los invoca y setea algunos parámetros necesarios para la corrida.<br>
+- La función, luego de completar el download, corre una tarea de *ECS fargate* que transforma los datos de manera conveniente y los carga en tablas de la instancia RDS master de PostgreSQL. Tanto el cluster como la definición de la tarea ya existen en ECS, la función Lambda solo los invoca y setea algunos parámetros necesarios para la corrida.<br>
 La tarea de ETL no corre como un servicio dentro de ECS de manera permanente sino que es lanzada por la función lambda y la misma se termina una vez que completa el proceso. Por lo tanto la tarea implica un costo solo por los recursos que utiliza durante el tiempo de la corrida.
 
 - Un dashboard con análisis de los datos queda siempre disponible sobre Metabase, desplegado por un servicio sobre ECS fargate que corre de forma permanente. Se ideo así para que la capa de reporting y analitics este disponible para este o cualquier otro proyecto de datos que se quiera desarrollar en la VPC.<br>
@@ -78,11 +78,11 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         }
 
 
-    que permite full access al servicio de System Manager Parameter Store utilizado por la aplicación para la gestión de parámetros. 
+    que permite full access al servicio de *System Manager Parameter Store* utilizado por la aplicación para la gestión de parámetros. 
     <br>
 
     ![diagrama](images/03_ssm_parameter_store_policy.png) 
-<br>
+    <br>
 
 - Crear el Key Pair *BastionHost* que se utilizará para acceso ssh al bastion host. Hacer el download del archivo .pem correspondiente y setear los permisos
 
@@ -90,7 +90,8 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         $> mv ~/Downloads/BastionHost.pem .
         $> chmod 400 BastionHost.pem
 
-<br>
+
+    ![diagrama](images/key_pair.png)
 
 - Parados en la carpeta root del proyecto, crear el stack *vpc-prod* utilizando el template `01-vpc.yml` 
 
@@ -111,6 +112,15 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
   - 6 VPC Endpoints.
   - 5 Security groups.
   - Personalización de los NACLs asociados a las subnets privadas para hacerlos más restrictivos.
+    <br><br>
+
+
+    Los VPC Endpoints creados son:
+      - S3 gateway endpoint: para descargar archivos de los buckets.
+      - ECR-dkr y ECR-api: para que ECS pueda acceder al repositorio y descargar la imágene docker del ETL.
+      - Cloudwatch-logs: para que ECS pueda registrar los logs de la corrida del ETL y del servicio de Metabase.
+      - SSM: para que ECS pueda tener acceso a los parámetros almacenados en Parameter Store.
+      - EC2-api: para que el despliegue de instancias ec2 de bastion host en el grupo de auto escalado, puedan setearse con la única EIP creada en la VPC.
 <br><br>
 
 
@@ -131,7 +141,12 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
     utilizando el script de bash `parameter_store_values_put.sh` que se encuentra en la carpeta root del proyecto: 
 
         $> bash parameter_store_values_put.sh
+   
+    Se muestran algunos parámetros desde la consola
 
+    ![diagrama](images/ssm_parameter_store.png)
+
+   
 - Crear el stack *asg-prod* que despliega un grupo de auto escalado en la capa pública para el Bastion Host, utilizando el template `02-asg.yml`
 
         $> aws cloudformation create-stack \
@@ -148,6 +163,10 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
     El template registra en Parameter Store los endpoints de ambas instancias.
 
+    ![diagrama](images/rds01.png)
+
+    ![diagrama](images/rds02.png)
+
 - Crear el stack *s3-prod* que despliega los buckets S3 para almacenar los datasets fuente y la distribución de la función lambda que se creará más adelante. Se utiliza el template `04-s3.yml`
 
         $> aws cloudformation create-stack \
@@ -155,12 +174,17 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
             --template-body file://cfn-templates/04-s3.yml \
             --profile cde
 
+    ![diagrama](images/s3.png)
+
+
 - Crear el stack *ecr-prod* que despliega en ECR el repositorio *python-etl* que luego alojará la imagen docker del ETL que ejecuta la tarea ECS. Se utiliza el template `05-ecr.yml`
 
         $> aws cloudformation create-stack \
             --stack-name ecr-prod \
             --template-body file://cfn-templates/05-ecr.yml \
             --profile cde
+
+    ![diagrama](images/ecr.png)
 
 - Subir a S3 el archivo .zip necesario para el deploy de la función lambda
 
@@ -185,6 +209,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
             --template-body file://cfn-templates/07-logs.template.yaml \
             --profile cde
 
+    ![diagrama](images/cloudwatch_logs01.png)
 
 - Inicializar la base de datos utizando el bastion host para acceder. Para ello agregamos la Elastic Public IP (EIP) del Bastion Host en `/etc/hosts`. Ejemplo
 
@@ -233,12 +258,14 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         $> aws ecs register-task-definition --cli-input-json file://$PWD/dashboard-cluster.json --profile cde
 
 
-    
-
-
 - En el repositorio GitHub del ETL, actualizar los secrets de GitHub Actions con las credenciales temporales otorgadas por el entorno de laboratorio. Luego hacer un deploy manual para forzar el building de la imagen docker del ETL y su registro en el repositorio *python-etl* de ECR.
 
- ![diagrama](images/03_ssm_parameter_store_policy.png) 
+    ![diagrama](images/github01.png) 
+
+    Se muestra el último deploy exitoso
+
+    ![diagrama](images/github02.png)
+
 
 - Finalmente crear un Aplication Load Balancer y un target group para soporte del despligue de Metabase a realizar con ECS fargate.
 
@@ -269,6 +296,12 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
   ![diagrama](images/ecs02.png)
 
 
+- Se muestra el despliegue exitoso de algunos stacks de Cloudformation
+
+    ![diagrama](images/cfn_stacks.png)
+
+
+
 - Crear en *EventBridge* un cron schedule semanal - el dataset de casos covid19 se actualiza todos los domingos - que ejecute la función lambda encarga del download de los datasets y de lanzar la tarea ECS que corre el ETL.
 
         $> aws events put-rule --schedule-expression "cron(00 00 ? * 2 2022-2023)" --name Covid19 --profile cde
@@ -286,73 +319,40 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
     ![diagrama](images/event_bridge_rule02.png)
 
-
-- Una vez ejecutada la regla, las tablas de la base covid19 estarán pobladas con datos y podemos continuar con la creación de una  dashboard de análisis en Metabase. A continuación se muestra el creado para este caso<br>
-
-
-    ![diagrama](images/meta_dash01.png)
-
-    ![diagrama](images/meta_dash02.png)
-
-    ![diagrama](images/meta_dash03.png)
-
-    ![diagrama](images/meta_dash04.png)
-
-
-
-# HASTA ACA #
-- Se implementan varios VPC Endpoints (los mínimos necesarios) para que la capa de aplicación pueda correr con éxito:
-    - S3 endpoint para bajar/subir archivos de/a los buckets.
-    - ECR-dkr y ECR-api para poder consultar/obtener desde el registro las imágenes de los contenedores.
-    - Cloudwatch-logs para poder subir los logs de la corrida a Cloudwatch.
-
 <br>
 
-## Algunas imágenes
+## Ejecución de la aplicación
+
+### Logs generados 
+<br>
+
+Lamba function
+![diagrama](images/cloudwatch_logs02.png)
+
+Tarea ETL 
+![diagrama](images/cloudwatch_logs03.png)
+
+Servicio de Metabase
+![diagrama](images/cloudwatch_logs04.png)
+
+<br>
 
 ### S3
-Buckets que se utilizan:
-![s3-buckets](images/s3-00-buckets.png)
+Bucket donde se guardan los datasets descargados
+
+![diagrama](images/s3_02.png)
 
 <br>
 
-Bucket donde Labmda almacena los datasets tras la descarga:
-![s3-datasets](images/s3-01-datasets.png)
+### Dashboard en Metabase
 
-<br>
+Se presenta los resultados de las mismas queries del proyecto inicial pero incorporando gráficos. 
 
-Bucket donde se guarda el archivo con las variables de entorno (el archivo que se ve en la imagen no esta en este repositorio. Se omite con .gitignore para no exponer credenciales):
-![s3-envs](images/s3-02-envs.png)
+![diagrama](images/meta_dash01.png)
 
-<br>
+![diagrama](images/meta_dash02.png)
 
-Bucket donde ECS Fargate guarda los reportes generados:
-![s3-reports](images/s3-03-reportes.png)
+![diagrama](images/meta_dash03.png)
 
-<br><br>
-
-### Bastion Host
-Acceso a base de datos desde equipo externo haciendo un Local Port Forwarding sobre ssh:
-![ssh-01](images/ssh-forward-01.png)
-
-![ssh-02](images/ssh-forward-02.png)
-
-Nota: La IP Pública del bastión host hay que buscarla en la consola de AWS. Se puede resolver el inconveniente implementando un balancedor para el grupo de auto escalado ya que conserva siempre el mismo DNS name.
-
-<br><br>
-
-### Logs
-
-Log de la última corrida de Lambda:
-![logs-etl](images/log-00-lambda.png)
-
-<br>
-
-Log de la última corrida de la tarea de etl:
-![logs-etl](images/log-01-etl.png)
-
-<br>
-
-Log de la última corrida de la tarea de reporte:
-![logs-reports](images/log-02-report.png)
+![diagrama](images/meta_dash04.png)
 
