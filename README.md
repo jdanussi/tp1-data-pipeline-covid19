@@ -104,26 +104,25 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
 
 
     El stack despliega y configura los siguientes recursos:
-
-  - 1 VPC
-  - 2 subnets públicas distribuídas en 2 zonas de disponibilidad para los servicios públicos (Public tier).
-  - 2 subnets privadas distribuídas en 2 zonas de disponibilidad para alojar la corrida del ETL (Data pipeline tier).
-  - 2 subnets privadas distribuídas en 2 zonas de disponibilidad para alojar la base de datos (Database tier).
-  - 1 Internet Gateway para permitir el acceso a internet de las subnets públicas.
-  - 3 tablas de rutas, una por cada capa. 
-  - 6 VPC Endpoints.
-  - 5 Security groups.
-  - Personalización de los NACLs asociados a las subnets privadas para hacerlos más restrictivos.
+    - 1 VPC
+    - 2 subnets públicas distribuídas en 2 zonas de disponibilidad para los servicios públicos (Public tier).
+    - 2 subnets privadas distribuídas en 2 zonas de disponibilidad para alojar la corrida del ETL (Data pipeline tier).
+    - 2 subnets privadas distribuídas en 2 zonas de disponibilidad para alojar la base de datos (Database tier).
+    - 1 Internet Gateway para permitir el acceso a internet de las subnets públicas.
+    - 3 tablas de rutas, una por cada capa. 
+    - 6 VPC Endpoints.
+    - 5 Security groups.
+    - Personalización de los NACLs asociados a las subnets privadas para hacerlos más restrictivos.
     <br><br>
 
-
     Los VPC Endpoints creados son:
-      - S3 gateway endpoint: para descargar archivos de los buckets.
-      - ECR-dkr y ECR-api: para que ECS pueda acceder al repositorio y descargar la imágene docker del ETL.
-      - Cloudwatch-logs: para que ECS pueda registrar los logs de la corrida del ETL y del servicio de Metabase.
-      - SSM: para que ECS pueda tener acceso a los parámetros almacenados en Parameter Store.
-      - EC2-api: para que el despliegue de instancias ec2 de bastion host en el grupo de auto escalado, puedan setearse con la única EIP creada en la VPC.
-<br><br>
+
+    - S3 gateway endpoint: para descargar archivos de los buckets.
+    - ECR-dkr y ECR-api: para que ECS pueda acceder al repositorio y descargar la imágene docker del ETL.
+    - Cloudwatch-logs: para que ECS pueda registrar los logs de la corrida del ETL y del servicio de Metabase.
+    - SSM: para que ECS pueda tener acceso a los parámetros almacenados en Parameter Store.
+    - EC2-api: para que el despliegue de instancias ec2 de bastion host en el grupo de auto escalado, puedan setearse con la única EIP creada en la VPC.
+    <br><br>    
 
 
 - Registrar en System Manager Parameter Store los siguiente parámetros iniciales
