@@ -239,7 +239,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         --profile cde
 
 
-    Se muestran algunos parámetros desde la consola
+    Se muestran algunos de los parámetros creados desde la consola
 
     ![diagrama](images/ssm_parameter_store.png)
 
@@ -457,7 +457,16 @@ Bucket donde se guardan los datasets descargados
 
 ### Dashboard en Metabase
 
-Se presenta los resultados de las mismas queries del proyecto inicial pero incorporando gráficos. 
+Metabase utiliza la RDS master de Postgres como backend, donde guarda todas las configuraciones, cuentas de usuario,  análisis y dashborad creados.
+
+Pero una vez creados los dashboards, conviene conectar Metabase a la RDS réplica, para quitar carga de trabajo sobre la instancia master que se ocupa principalmente de los accesos de escritura del ETL.<br>
+Se muestra a continuación como quedó la configuración de acceso a la base de datos ***covid19***
+
+![diagrama](images/meta_01.png)
+
+<br>
+
+Dashboard creado con las mismas queries utilizadas en el proyecto inicial pero incorporando gráficos
 
 ![diagrama](images/meta_dash01.png)
 
@@ -471,11 +480,11 @@ Se presenta los resultados de las mismas queries del proyecto inicial pero incor
 
 # Costo de la solución
 
-A continuación se muestra un cálculo aproximado de costos para esta solución:
+A continuación se muestra un cálculo aproximado de [costos](https://calculator.aws/#/estimate?id=31a63b929bf6356a7bd6028101c55e6f32b8de48) para esta solución
+
 
 ![diagrama](images/costos01.png)
 ![diagrama](images/costos02.png)
 ![diagrama](images/costos03.png)
 ![diagrama](images/costos04.png)
 ![diagrama](images/costos05.png)
-
