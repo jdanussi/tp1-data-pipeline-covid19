@@ -474,12 +474,8 @@ Se presenta los resultados de las mismas queries del proyecto inicial pero incor
 A continuación se muestra un cálculo aproximado de costos para esta solución:
 
 ![diagrama](images/costos01.png)
-
-<br>
-
-El detalle es:
-    ![diagrama](images/costos02.png)
-    ![diagrama](images/costos03.png)
-    ![diagrama](images/costos04.png)
-    ![diagrama](images/costos05.png)
+![diagrama](images/costos02.png)
+![diagrama](images/costos03.png)
+![diagrama](images/costos04.png)
+![diagrama](images/costos05.png)
 
