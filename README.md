@@ -334,7 +334,7 @@ A continuación se describe la secuencia de pasos a seguir dentro del ambiente d
         Database connection closed
 
     Los detalles de este script pueden verse en el repositorio del proyecto.
-    
+
     Crear la base de datos para soporte de Metabase
 
         $> psql -h localhost -p 4000 -v ON_ERROR_STOP=1 -U postgres<<-EOSQL
@@ -466,4 +466,18 @@ Se presenta los resultados de las mismas queries del proyecto inicial pero incor
 ![diagrama](images/meta_dash03.png)
 
 ![diagrama](images/meta_dash04.png)
+
+<br>
+
+# Costo de la solución
+
+A continuación se muestra un cálculo aproximado de costos para esta solución:
+
+![diagrama](images/costos01.png)
+
+El detalle es:
+![diagrama](images/costos02.png)
+![diagrama](images/costos03.png)
+![diagrama](images/costos04.png)
+![diagrama](images/costos05.png)
 
